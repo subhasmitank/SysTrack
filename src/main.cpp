@@ -45,6 +45,32 @@ double getCpuUsage()
     return std::clamp(usage, 0.0, 100.0);
 }
 
+double getMemoryUsage()
+{
+    std::ifstream file("/proc/meminfo");
+
+    std::string label;
+    long long total = 0;
+    long long available = 0;
+    long long value;
+    std::string unit;
+
+    while (file >> label >> value >> unit)
+    {
+        if (label == "MemTotal:")
+            total = value;
+
+        if (label == "MemAvailable:")
+            available = value;
+    }
+
+    if (total == 0)
+        return 0.0;
+
+    double used = total - available;
+    return (used / total) * 100.0;
+}
+
 int main()
 {
     std::cout << "Linux System Monitor\n";
@@ -53,13 +79,17 @@ int main()
     while (true)
     {
         double cpu = getCpuUsage();
+	double memory = getMemoryUsage();
 
-        std::cout << "\033[2K\rCPU Usage: "
-                  << cpu << "% " << std::flush;
+        
+	std::cout << "\033[2K\rCPU Usage: "
+          << cpu << "% | Memory Usage: "
+          << memory << "% " << std::flush;
+
+
 
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 
     return 0;
 }
-

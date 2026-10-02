@@ -4,6 +4,10 @@
 #include <thread>
 #include <chrono>
 #include <algorithm>
+#include <filesystem>
+#include <cctype>
+#include <iomanip>
+#include <sys/utsname.h>
 
 double getCpuUsage()
 {
@@ -48,7 +52,6 @@ double getCpuUsage()
 double getMemoryUsage()
 {
     std::ifstream file("/proc/meminfo");
-
     std::string label;
     long long total = 0;
     long long available = 0;
@@ -68,24 +71,92 @@ double getMemoryUsage()
         return 0.0;
 
     double used = total - available;
-    return (used / total) * 100.0;
+    return (static_cast<double>(used) / total) * 100.0;
 }
+
+double getUptime()
+{
+    std::ifstream file("/proc/uptime");
+    double uptime;
+    file >> uptime;
+
+    return uptime;
+}
+void getProcessInfo()
+{
+
+	std::cout << "\nPROCESS INFORMATION\n";
+	std::cout << "-----------------------------\n";
+	std::cout << "PID\tNAME\tSTATE\n";
+	std::cout << "-----------------------------\n";
+
+
+    for (const auto& entry : std::filesystem::directory_iterator("/proc"))
+    {
+        std::string name = entry.path().filename().string();
+	if (!name.empty() &&
+            std::all_of(name.begin(), name.end(), ::isdigit))
+        {
+		std::string commPath = "/proc/" + name + "/comm";
+		std::ifstream commFile(commPath);
+                std::string processName;
+                commFile >> processName;
+
+                std::cout << std::left << std::setw(8) << name;
+            std::cout << std::setw(20) << processName;
+		std::string statusPath = "/proc/" + name + "/status";
+		std::ifstream statusFile(statusPath);
+		std::string line;
+                while (std::getline(statusFile, line))
+		{
+			if (line.rfind("State:", 0) == 0)
+                {
+				std::cout << line[7] << '\n';
+                    break;
+                }
+		}
+        }
+
+    }
+}
+
+void getSystemInfo()
+{
+    struct utsname info;
+
+    if (uname(&info) == 0)
+    {
+        std::cout << "\nSYSTEM INFORMATION\n";
+        std::cout << "-----------------------------\n";
+        std::cout << "System: " << info.sysname << '\n';
+        std::cout << "Kernel: " << info.release << '\n';
+        std::cout << "Machine: " << info.machine << '\n';
+    }
+}
+
+
 
 int main()
 {
-    std::cout << "Linux System Monitor\n";
-    std::cout << "====================\n";
 
     while (true)
     {
+	std::cout << "\033[2J\033[H";
+
+	std::cout << "SysTrack\n";
+	std::cout << "===============================================\n";
+
+	getSystemInfo();
         double cpu = getCpuUsage();
 	double memory = getMemoryUsage();
+	double uptime = getUptime();
+        getProcessInfo();
 
-        
-	std::cout << "\033[2K\rCPU Usage: "
-          << cpu << "% | Memory Usage: "
-          << memory << "% " << std::flush;
-
+	std::cout << "\nCPU Usage: "
+	          << cpu << "% | Memory Usage: "
+                  << memory << "% "
+		  << " | Uptime: " << uptime << " seconds"
+                  << std::flush;
 
 
         std::this_thread::sleep_for(std::chrono::seconds(1));
